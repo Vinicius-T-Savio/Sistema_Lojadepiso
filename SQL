@@ -1,0 +1,182 @@
+-- 1. Tabela de Usuários (ID precisa ser chave primária para os relacionamentos)
+CREATE TABLE usuario(
+    id_user INT PRIMARY KEY,
+    nome VARCHAR(100),
+    senha VARCHAR(20),
+    cargo VARCHAR(19)
+);
+
+-- 2. Tabela Cliente
+CREATE TABLE cliente(
+    id_cliente INT PRIMARY KEY,
+    nome VARCHAR(100) NOT NULL,
+    telefone INT NOT NULL,
+    endereco VARCHAR(75) NOT NULL
+);
+
+-- 3. Tabelas de Cargos (Herdam de Usuario)
+CREATE TABLE estoquista(
+    id_estoquista INT PRIMARY KEY,
+    usuario INT NOT NULL,
+    nome VARCHAR(100),
+    CONSTRAINT fk_usuario_estoque FOREIGN KEY (usuario) REFERENCES usuario(id_user)
+);
+
+CREATE TABLE entregador(
+    id_entregador INT PRIMARY KEY,
+    usuario INT NOT NULL,
+    nome VARCHAR(100),
+    qtd_entrega INT NOT NULL,
+    CONSTRAINT fk_usuario_entrega FOREIGN KEY (usuario) REFERENCES usuario(id_user)
+);
+
+CREATE TABLE instalador(
+    id_instalador INT PRIMARY KEY,
+    usuario INT NOT NULL,
+    nome VARCHAR(100),
+    qtd_instalar INT DEFAULT 0,
+    CONSTRAINT fk_usuario_inst FOREIGN KEY (usuario) REFERENCES usuario(id_user)
+);
+
+CREATE TABLE vendedor(
+    id_vendedor INT PRIMARY KEY,
+    usuario INT NOT NULL,
+    nome VARCHAR(100),
+    qtd_clientes INT NOT NULL,
+    CONSTRAINT fk_usuario_vend FOREIGN KEY (usuario) REFERENCES usuario(id_user)
+);
+
+CREATE TABLE financeiro(
+    id_financeiro INT PRIMARY KEY,
+    nome VARCHAR(100),
+    usuario INT NOT NULL,
+    CONSTRAINT fk_usuario_fin FOREIGN KEY (usuario) REFERENCES usuario(id_user)
+);
+
+-- 4. Tabelas de Produtos e Vendas
+CREATE TABLE produto_rotativo(
+    id_estoque INT PRIMARY KEY,
+    nome_prod VARCHAR(85),
+    quantidade INT NOT NULL,
+    tipo_prod VARCHAR(35) NOT NULL,
+    cor VARCHAR(25) NOT NULL,
+    tamanho VARCHAR(15) NOT NULL,
+    marca VARCHAR(45) NOT NULL,
+    encaixe VARCHAR(18) NOT NULL,
+    volumepcaixa NUMERIC,
+    preco DECIMAL(10,2) NOT NULL
+);
+
+CREATE TABLE produto_fixo(
+    id_estoque INT PRIMARY KEY,
+    nome_prod VARCHAR(85),
+    quantidade INT NOT NULL,
+    volumepcaixa NUMERIC,
+    preco DECIMAL(10,2) NOT NULL
+);
+
+CREATE TABLE item_pedido(
+    id_item INT PRIMARY KEY,
+    quantidade INT NOT NULL,
+    preco_unitario NUMERIC(10,2),
+    estoque INT NOT NULL,
+    CONSTRAINT fk_estoque_item FOREIGN KEY (estoque) REFERENCES produto_rotativo(id_estoque)
+);
+
+CREATE TABLE pedido(
+    id_pedido INT PRIMARY KEY,
+    vendedor INT NOT NULL,
+    aprovacao BOOLEAN DEFAULT FALSE, 
+    status_pedido BOOLEAN DEFAULT FALSE, -- Alterado para bater com a trigger (status_pedido)
+    cliente INT NOT NULL,
+    data_pedido DATE,
+    valor_total DECIMAL(10,2) NOT NULL,
+    comprimento INT,
+    nomeMaterial VARCHAR(200),
+    CONSTRAINT fk_vendedor FOREIGN KEY (vendedor) REFERENCES vendedor(id_vendedor),
+    CONSTRAINT fk_cliente FOREIGN KEY (cliente) REFERENCES cliente(id_cliente)
+);
+
+CREATE TABLE agendamento(
+    id_agendamento INT PRIMARY KEY,
+    data_instalacao VARCHAR(12),
+    hora VARCHAR(5),
+    status_cor VARCHAR(15),
+    pedido INT NOT NULL,
+    cliente INT NOT NULL,
+    CONSTRAINT fk_cliente FOREIGN KEY (cliente) REFERENCES cliente(id_cliente)
+    CONSTRAINT fk_pedido FOREIGN KEY (pedido) REFERENCES pedido(id_pedido)
+);
+
+CREATE TABLE vendas_mensais(
+    id_vendas INT PRIMARY KEY,
+    total DECIMAL(10,2) NOT NULL
+);
+
+CREATE OR REPLACE PROCEDURE upt_estoque(p_id_estoque INT, p_qtd_prod INT, p_valor_total DECIMAL)
+AS $$
+BEGIN
+    UPDATE produto_rotativo SET quantidade = quantidade - p_qtd_prod WHERE id_estoque = p_id_estoque;
+    UPDATE vendas_mensais SET total = total + p_valor_total WHERE id_vendas = 1; -- Exemplo com ID fixo 1
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION func_upt_pedido()
+RETURNS TRIGGER AS $$
+BEGIN 
+    IF NEW.status_pedido = TRUE AND OLD.status_pedido = FALSE THEN
+        -- Como exemplo, buscando o item associado
+        CALL upt_estoque(NEW.item, 1, NEW.valor_total); 
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER Baixa_estoque
+AFTER UPDATE ON pedido
+FOR EACH ROW 
+EXECUTE FUNCTION func_upt_pedido();
+
+-- Função auxiliar para simular o comportamento da procedure interna que você chamava
+CREATE OR REPLACE FUNCTION id_randomico(tipocargo varchar(15))
+RETURNS INTEGER AS $$
+DECLARE
+    rand INTEGER;
+    num INTEGER := 1;
+BEGIN
+    WHILE num > 0 LOOP
+        rand := floor(random() * 6000) + 1;
+        EXECUTE format('SELECT COUNT(*) FROM %I WHERE %I = $1', tipocargo, 'id_' || tipocargo)
+        INTO num USING rand;
+    END LOOP;
+    RETURN rand;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION func_evento()
+RETURNS TRIGGER AS $$
+DECLARE 
+    val INTEGER;
+BEGIN
+    val := id_randomico(NEW.cargo);
+    
+    CASE NEW.cargo
+        WHEN 'estoquista' THEN
+            INSERT INTO estoquista(id_estoquista, nome, usuario) VALUES(val, NEW.nome, NEW.id_user);
+        WHEN 'entregador' THEN
+            INSERT INTO entregador(id_entregador, usuario, nome, qtd_entrega) VALUES(val, NEW.id_user, NEW.nome, 0);
+        WHEN 'instalador' THEN
+            INSERT INTO instalador(id_instalador, usuario, nome, qtd_instalar) VALUES(val, NEW.id_user, NEW.nome, 0);
+        WHEN 'vendedor' THEN
+            INSERT INTO vendedor(id_vendedor, usuario, nome, qtd_clientes) VALUES(val, NEW.id_user, NEW.nome, 0);
+        ELSE
+            -- Outros cargos (ex: financeiro)
+    END CASE;
+    RETURN NEW; 
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER usuario_insert
+AFTER INSERT ON usuario  -- Alterado para AFTER para garantir que o ID do usuário já exista
+FOR EACH ROW
+EXECUTE FUNCTION func_evento();
