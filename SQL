@@ -177,6 +177,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE TRIGGER usuario_insert
-AFTER INSERT ON usuario  -- Alterado para AFTER para garantir que o ID do usuário já exista
+AFTER INSERT ON usuario
 FOR EACH ROW
 EXECUTE FUNCTION func_evento();
