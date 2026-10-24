@@ -22,22 +22,6 @@ CREATE TABLE estoquista(
     CONSTRAINT fk_usuario_estoque FOREIGN KEY (usuario) REFERENCES usuario(id_user)
 );
 
-CREATE TABLE entregador(
-    id_entregador INT PRIMARY KEY,
-    usuario INT NOT NULL,
-    nome VARCHAR(100),
-    qtd_entrega INT NOT NULL,
-    CONSTRAINT fk_usuario_entrega FOREIGN KEY (usuario) REFERENCES usuario(id_user)
-);
-
-CREATE TABLE instalador(
-    id_instalador INT PRIMARY KEY,
-    usuario INT NOT NULL,
-    nome VARCHAR(100),
-    qtd_instalar INT DEFAULT 0,
-    CONSTRAINT fk_usuario_inst FOREIGN KEY (usuario) REFERENCES usuario(id_user)
-);
-
 CREATE TABLE vendedor(
     id_vendedor INT PRIMARY KEY,
     usuario INT NOT NULL,
