@@ -146,15 +146,13 @@ BEGIN
     
     CASE NEW.cargo
         WHEN 'estoquista' THEN
-            INSERT INTO estoquista(id_estoquista, nome, usuario) VALUES(val, NEW.nome, NEW.id_user);
-        WHEN 'entregador' THEN
-            INSERT INTO entregador(id_entregador, usuario, nome, qtd_entrega) VALUES(val, NEW.id_user, NEW.nome, 0);
-        WHEN 'instalador' THEN
-            INSERT INTO instalador(id_instalador, usuario, nome, qtd_instalar) VALUES(val, NEW.id_user, NEW.nome, 0);
+            INSERT INTO estoquista(id_estoquista, usuario, nome) VALUES(val, NEW.id_user, NEW.nome);
         WHEN 'vendedor' THEN
             INSERT INTO vendedor(id_vendedor, usuario, nome, qtd_clientes) VALUES(val, NEW.id_user, NEW.nome, 0);
+        WHEN 'financeiro' THEN
+            INSERT INTO vendedor(id_financeiro, nome, usuario) VALUES(val, NEW.nome, id_user);
         ELSE
-            -- Outros cargos (ex: financeiro)
+            INSERT INTO gestor(id_gestor, usuario, nome) VALUES(val, NEW.id_user, NEW.nome);
     END CASE;
     RETURN NEW; 
 END;
